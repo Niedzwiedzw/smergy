@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use walkdir::{WalkDir, DirEntry};
 use std::iter::Iterator;
+use crate::ffmpeg_wrapper::{Ffmpeg, RawFfmpegFileData};
 
 pub static SUPPORTED_AUDIO: [&'static str; 1] = [
     "wav",
@@ -34,6 +35,10 @@ impl MediaFile {
         } else {
             None
         }
+    }
+
+    pub fn metadata_raw(&self) -> Option<RawFfmpegFileData> {
+        Ffmpeg::media_file_metadata_raw(self.0.path())
     }
 
     fn validate(&self) -> bool {

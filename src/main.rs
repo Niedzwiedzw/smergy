@@ -6,6 +6,7 @@ use std::error::Error;
 use structopt::StructOpt;
 use crate::media_file::{media_files, MediaFile};
 use walkdir::DirEntry;
+use crate::ffmpeg_wrapper::Ffmpeg;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -15,14 +16,15 @@ struct Cli {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("Hello, world!");
     let cli = Cli::from_args();
-    let entries: Vec<_> = cli.directories
+    let entries: Vec<MediaFile> = cli.directories
         .iter()
         .map(media_files)
         .flatten()
         .collect();
 
-    println!("{:?}", entries);
+    println!("FFMPEG version found: {}", Ffmpeg::version().unwrap());
+    println!("{:?}", entries[0].metadata_raw().unwrap());
+
     Ok(())
 }
