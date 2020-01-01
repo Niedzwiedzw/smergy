@@ -1,11 +1,14 @@
+#![feature(box_syntax)]
+
 mod media_file;
 mod ffmpeg_wrapper;
+mod devices;
+mod select;
 
 use std::path::PathBuf;
 use std::error::Error;
 use structopt::StructOpt;
 use crate::media_file::{media_files, MediaFile};
-use walkdir::DirEntry;
 use crate::ffmpeg_wrapper::Ffmpeg;
 
 #[derive(StructOpt, Debug)]
@@ -16,15 +19,22 @@ struct Cli {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cli = Cli::from_args();
-    let entries: Vec<MediaFile> = cli.directories
+    let cli: Cli = Cli::from_args();
+    let entries = cli.directories
         .iter()
         .map(media_files)
-        .flatten()
-        .collect();
-
-    println!("FFMPEG version found: {}", Ffmpeg::version().unwrap());
-    println!("{:?}", entries[0].metadata_raw().unwrap());
-
+        .flatten();
+    println!("FFMPEG version found: {}\n", Ffmpeg::version().unwrap());
+    for entry in entries.into_iter() {
+        let entry: MediaFile = entry.clone();
+        let length = entry.duration_pretty().expect("cannot find duration");
+        println!(
+            "{}[{}] ~~~~ {} - {}",
+            entry.filename(),
+            length,
+            entry.start().expect("cannot decode creation time"),
+            entry.end().unwrap(),
+        );
+    }
     Ok(())
 }
