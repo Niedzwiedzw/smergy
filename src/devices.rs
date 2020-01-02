@@ -1,5 +1,5 @@
 use crate::media_file::MediaFile;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 
 pub type DeviceDatetimeGetter = fn(&MediaFile) -> Option<NaiveDateTime>; // returns creation time
 
@@ -9,7 +9,7 @@ fn android_10(device: &MediaFile) -> Option<NaiveDateTime> {
         .format.as_ref()?
         .tags.as_ref()?
         .creation_time.as_ref()?;
-    NaiveDateTime::parse_from_str(creation.as_str(), "%FT%T%.fZ").ok()
+    Some(NaiveDateTime::parse_from_str(creation.as_str(), "%FT%T%.fZ").ok()? + Duration::hours(1))
 }
 
 fn filesystem(device: &MediaFile) -> Option<NaiveDateTime> {

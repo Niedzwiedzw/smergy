@@ -5,7 +5,7 @@ pub struct Select {}
 pub type VideoAudioGroup = (MediaFile, Vec<MediaFile>);
 
 impl Select {
-    fn media_files<T: AsRef<Path>>(directories: Vec<T>) -> Vec<MediaFile> {
+    fn media_files<T: AsRef<Path>>(directories: &Vec<T>) -> Vec<MediaFile> {
         directories
             .iter()
             .map(media_files)
@@ -31,17 +31,26 @@ impl Select {
         (video, audio)
     }
 
-    pub fn grouped_media<T: AsRef<Path>>(directories: Vec<T>) -> Vec<VideoAudioGroup> {
-        let all_media: Vec<MediaFile> = Self::media_files(directories);
-        let (audio_files, video_files): (Vec<MediaFile>, Vec<MediaFile>) = Self::media_files_by_type(all_media);
+    fn grouped_media<T: AsRef<Path>>(directories: &Vec<T>) -> Vec<VideoAudioGroup> {
+        let all_media = Self::media_files(directories);
+        let (video_files, audio_files ) = Self::media_files_by_type(all_media);
         video_files
             .into_iter()
-            .map(|v| (
-                v,
-                audio_files
-                    .into_iter()
-                    .map(|a| a.clone())
-                    .filter(|a| v.overlaps(&a)).collect(),
-            )).collect()
+            .map(|v| (v.clone(), v.overlapping(&audio_files)))
+            .collect()
+    }
+
+    pub fn candidates<T: AsRef<Path>>(directories: &Vec<T>) -> Vec<VideoAudioGroup> {
+        let mut media: Vec<_> = Self::grouped_media(directories)
+            .into_iter()
+            .filter(|(v, a)| !a.is_empty())
+            .collect();
+        media.sort_by(
+            |(one, _), (other, __)|
+                one.start()
+                    .unwrap()
+                    .cmp(&other.start().unwrap())
+        );
+        media
     }
 }

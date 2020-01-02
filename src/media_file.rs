@@ -1,4 +1,4 @@
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::iter::Iterator;
 use std::fmt::Write;
 
@@ -11,8 +11,12 @@ use chrono::{
     Local,
 };
 
+use std::fs::{copy, create_dir};
+
 use crate::ffmpeg_wrapper::{Ffmpeg, FfmpegFileData};
 use crate::devices::{DeviceDatetimeGetter, device_metadata_parsers};
+use serde::export::fmt::{Display, Error};
+use serde::export::Formatter;
 
 pub static SUPPORTED_AUDIO: [&'static str; 1] = [
     "wav",
@@ -67,15 +71,27 @@ pub struct MediaFile {
     ffmpeg_metadata: Option<FfmpegFileData>,
 }
 
+pub fn get_tmp_entry(name: String) -> Option<PathBuf> {
+    let path = PathBuf::from(format!("/tmp/{}/", name));
+    create_dir(&path);
+    if !path.exists() { return None }
+    Some(path)
+}
+
 impl MediaFile {
     pub fn from_entry(entry: DirEntry) -> Option<Self> {
         let mut media_file = MediaFile { entry, ffmpeg_metadata: None };
-        media_file.ffmpeg_metadata = Ffmpeg::media_file_metadata_raw(media_file.entry.path());
-        if media_file.validate() {
-            Some(media_file)
-        } else {
-            None
+        if !media_file.pre_validate() {
+            return None
         }
+
+        media_file.ffmpeg_metadata = Ffmpeg::media_file_metadata_raw(media_file.entry.path());
+
+        if !media_file.validate() {
+            return None
+        }
+
+        Some(media_file)
     }
 
     pub fn ffmpeg_data_raw(&self) -> Option<&FfmpegFileData> {
@@ -86,8 +102,28 @@ impl MediaFile {
         Some(self.entry.path().extension()?.to_str()?.to_lowercase())
     }
 
+    pub fn base_name(&self) -> Option<String> {
+        Some(self.filename().replace(&self.extension()?, ""))
+    }
+
     fn starts_during(&self, other: &Self) -> Option<bool> {
         Some(other.start()? <= self.start()? && self.start()? <= other.end()?)
+    }
+
+    fn ends_during(&self, other: &Self) -> Option<bool> {
+        Some(other.start()? <= self.end()? && self.end()? <= other.end()?)
+    }
+
+    fn contains(&self, other: &Self) -> bool {
+        other.starts_during(self).unwrap_or(false) && other.ends_during(self).unwrap_or(false)
+    }
+
+    pub fn contained(&self, files: &Vec<Self>) -> Vec<Self> {
+        files
+            .iter()
+            .filter(|other| self.contains(other))
+            .map(|other| other.clone())
+            .collect()
     }
 
     fn overlaps_option(&self, other: &Self) -> Option<bool> {
@@ -98,7 +134,15 @@ impl MediaFile {
         self.overlaps_option(other).unwrap_or(false)
     }
 
-    fn validate(&self) -> bool {
+    pub fn overlapping(&self, files: &Vec<Self>) -> Vec<Self> {
+        files
+            .iter()
+            .filter(|other| self.overlaps(other))
+            .map(|other| other.clone())
+            .collect()
+    }
+
+    fn pre_validate(&self) -> bool {
         let meta = match self.entry.metadata() {
             Ok(meta) => meta,
             Err(_) => return false,
@@ -108,9 +152,11 @@ impl MediaFile {
             None => return false,
         };
 
-        meta.is_file()
-            && supported_extensions().any(|e| e == &ext)
-            && self.duration_ts().is_some()
+        meta.is_file() && supported_extensions().any(|e| e == &ext)
+    }
+
+    fn validate(&self) -> bool {
+        self.duration_ts().is_some()
     }
 
     pub fn media_type(&self) -> Option<MediaType> {
@@ -163,7 +209,46 @@ impl MediaFile {
         Some(self.end()? - self.duration()?)
     }
 
+    pub fn start_pretty(&self) -> Option<String> {
+        Some(self.start()?.format("%Y-%m-%d %H:%M:%S").to_string())
+    }
+
     pub fn filename(&self) -> String {
         self.entry.file_name().to_os_string().into_string().expect("Failed to decode OS string")
+    }
+
+    pub fn full_path(&self) -> &str {
+        self.entry.path().to_str().unwrap_or("UNKNOWN_PATH")
+    }
+
+    pub fn cli_friendly_path(&self) -> String {
+        self.full_path().clone().replace(" ", "\\ ")
+    }
+
+    pub fn tmp_entry(&self) -> Option<PathBuf> {
+        let mut entry = get_tmp_entry(self.base_name()?)?;
+        entry.push(PathBuf::from(self.filename()));
+        Some(entry)
+    }
+
+    pub fn make_copy(&self) -> Option<Self> {
+        let copy_path = self.tmp_entry()?;
+        if !copy_path.exists() {
+            println!("# copying {}...", self.filename());
+            copy(self.entry.path(), copy_path).ok()?;
+        }
+        media_files(&self.tmp_entry()?.parent()?).into_iter().next()
+    }
+}
+
+impl Display for MediaFile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(
+            f,
+            "[({}): \"{}\" ({})]",
+            self.start_pretty().unwrap_or(String::from("unknown")),
+            self.full_path(),
+            self.duration_pretty().unwrap_or(String::from("unknown")),
+        )
     }
 }
