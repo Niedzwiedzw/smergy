@@ -43,7 +43,7 @@ impl Select {
     pub fn candidates<T: AsRef<Path>>(directories: &Vec<T>) -> Vec<VideoAudioGroup> {
         let mut media: Vec<_> = Self::grouped_media(directories)
             .into_iter()
-            .filter(|(v, a)| !a.is_empty())
+            .filter(|(_v, a)| !a.is_empty())
             .collect();
         media.sort_by(
             |(one, _), (other, __)|

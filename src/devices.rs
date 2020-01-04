@@ -1,5 +1,5 @@
 use crate::media_file::MediaFile;
-use chrono::{DateTime, Utc, NaiveDateTime, Duration};
+use chrono::{NaiveDateTime, Duration};
 
 pub type DeviceDatetimeGetter = fn(&MediaFile) -> Option<NaiveDateTime>; // returns creation time
 

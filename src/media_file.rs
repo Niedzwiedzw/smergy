@@ -4,11 +4,8 @@ use std::fmt::Write;
 
 use walkdir::{WalkDir, DirEntry};
 use chrono::{
-    DateTime,
     NaiveDateTime,
     Duration,
-    Utc,
-    Local,
 };
 
 use std::fs::{copy, create_dir};
@@ -192,10 +189,6 @@ impl MediaFile {
 
     pub fn duration_pretty(&self) -> Option<String> {
         duration_pretty(self.duration()?)
-    }
-
-    fn creation_time(&self, fun: &DeviceDatetimeGetter) -> Option<NaiveDateTime> {
-        fun(self)
     }
 
     pub fn end(&self) -> Option<NaiveDateTime> {
